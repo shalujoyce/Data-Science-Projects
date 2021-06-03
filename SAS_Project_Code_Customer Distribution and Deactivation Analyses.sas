@@ -1,0 +1,482 @@
+
+/* ## SAS PROJECT FOR THE  Telecom company
+
+Customer Distribution and Deactivation Analyses  by Shalu Eluvelil Vavakunju ! */
+
+
+*CONNECTING  PERMANENT SAS LIB PROJECT USING LIBNAME STATEMENT;
+LIBNAME PROJECT "C:\Users\joyce\OneDrive\Desktop\DATASCIENCE\SAS+SQL\MiniProject";
+
+TITLE " IMPORTING CRM DATA SET ";
+Data PROJECT.WIRELESS;
+infile 'C:\Users\joyce\OneDrive\Desktop\DATASCIENCE\SAS+SQL\MiniProject\New_Wireless_Fixed.txt' ;
+input Acctno  1-13 
+@15 Actdt mmddyy10. 
+@26 Deactdt mmddyy10. 
+Deactreason $ 41-44 
+Goodcredit 53
+Rateplan $ 62
+Dealertype $ 65-66
+Age  74-75 
+Province $ 80-81
+Sales $ 85-92 
+;
+format Acctno 13.0 Actdt date9. Deactdt date9. Sales 8.
+;
+
+RUN; 
+
+/*Provided name of Data set as PROJECT.WIRELESS where PROJECT is the LIBRARY name.
+Attribute names along with length and Format are given in the code.*/
+
+proc print DATA = PROJECT.WIRELESS (OBS=500);
+* Viewing first 500 rows of the dataset;
+run;
+TITLE; *removing title;
+
+
+*BROWSING THE DESCRIPTION PORTION ;
+PROC CONTENTS DATA=PROJECT.WIRELESS ;
+RUN;
+
+/*Changing Data type of Sales from Character to Numeric and saving as Num_Sales for applying Formats and Finding Relations in Future.
+Adding a New Column as Credit based on GoodCredit Column to provide two levels of data and changing data type to Char */
+
+DATA PROJECT.WIRELESS_FORM;
+SET PROJECT.WIRELESS;
+Num_Sales = input(Sales, dollar10.);
+IF Goodcredit = 1 THEN Credit= "Good Credit";
+ELSE Credit = "Bad credit";
+RUN;
+
+PROC PRINT DATA = PROJECT.WIRELESS_FORM (OBS=10);* Viewing first 10 rows of the dataset;
+RUN;
+
+*ANALYSIS REQUESTS;
+
+/*1.1 .Explore and describe the dataset briefly. For example, is the acctno unique? What
+is the number of accounts activated and deactivated? When is the earliest and
+latest activation/deactivation dates available? And so on….*/
+
+*BROWSING THE DESCRIPTION PORTION ;
+PROC CONTENTS DATA=PROJECT.WIRELESS_FORM ;
+RUN;
+
+*USING PROC SQL CODE;
+PROC SQL;
+   DESCRIBE TABLE PROJECT.WIRELESS_FORM;
+QUIT;
+
+*BROWSING THE DATA PORTION (VALUES OF YOUR SAS DATA);
+*HEAD;
+PROC PRINT DATA=PROJECT.WIRELESS_FORM (obs=5);
+RUN;
+
+* TAIL OF DATASET ;
+PROC PRINT DATA = PROJECT.WIRELESS_FORM (OBS=102255 FIRSTOBS = 102251);
+RUN;
+* CHECKING WHETHER ACCOUNT NUMBER IS UNIQUE OR NOT AND WILL REMOVE DUPLICATES IF EXISTS;
+
+*REMOVE DUPLICATES;
+PROC SORT DATA = PROJECT.WIRELESS_FORM OUT = PROJECT.WIRELESS_NDUP NODUPKEY;
+BY Acctno;
+RUN;
+
+*NO DUPLICATES FOR ACCOUNT NUMBER GIVEN IN THE LOG;
+
+/*
+NOTE: There were 102255 observations read from the data set PROJECT.WIRELESS.
+NOTE: 0 observations with duplicate key values were deleted.
+NOTE: The data set PROJECT.WIRELESS_NDUP has 102255 observations and 10 variables.
+NOTE: PROCEDURE SORT used (Total process time):
+      real time           0.08 seconds
+      cpu time            0.04 seconds
+
+*/
+
+
+
+*WHAT IS THE NUMBER OF ACCOUNTS ACTIVATED AND DEACTIVATED?;
+
+/* USING PROC SQL AND COUNT FUNCTION FINDING THE COUNT OF ACTIVE AND INACTIVE CUSTOMERS*/
+PROC SQL;
+SELECT COUNT(Acctno) AS TOTAL_ACCOUNTS,(COUNT(AcctNO)-COUNT(Deactdt)) AS NO_ACTVTD_ACCOUNTS,
+COUNT(Deactdt) AS NO_DEACTVTD_ACCOUNTS
+FROM PROJECT.WIRELESS;
+QUIT;
+
+
+*WHEN IS THE EARLIEST AND LATEST ACTIVATION/DEACTIVATION DATES AVAILABLE?;
+
+/*SORTING Actdt BY ASC WILL GIVE YOU THE EARLISET ACTIVATION DATE*/
+TITLE "FIRST ACTIVATION DATE";
+PROC SQL OUTOBS=1;
+SELECT * FROM PROJECT.WIRELESS
+WHERE Actdt IS NOT NULL
+ORDER BY Actdt ASC;
+QUIT;
+TITLE;
+
+/*SORTING Actdt BY DESC WILL GIVE YOU THE LATEST ACTIVATION DATE*/
+TITLE "LAST ACTIVATION DATE";
+PROC SQL OUTOBS=1;
+SELECT * FROM PROJECT.WIRELESS
+WHERE Actdt IS NOT NULL
+ORDER BY Actdt DESC;
+QUIT;
+TITLE;
+
+/*SORTING Deactdt BY ASC WILL GIVE YOU THE FIRST DEACTIVATION DATE*/
+TITLE "FIRST DEACTIVATION DATE";
+PROC SQL OUTOBS=1;
+SELECT * FROM PROJECT.WIRELESS
+WHERE Deactdt IS NOT NULL
+ORDER BY Deactdt ASC;
+QUIT;
+TITLE;
+
+/*SORTING Deactdt BY DESC WILL GIVE YOU THE LAST DEACTIVATION DATE*/
+TITLE "LAST DEACTIVATION DATE";
+PROC SQL OUTOBS=1;
+SELECT * FROM PROJECT.WIRELESS
+WHERE Deactdt IS NOT NULL
+ORDER BY Deactdt DESC;
+QUIT;
+TITLE;
+
+TITLE "DESCRIPTIVE ANALYSIS OF CONTINUOUS VARIABLES";
+PROC MEANS DATA = PROJECT.WIRELESS;
+RUN;
+
+
+
+*Q1.2  WHAT IS THE AGE AND PROVINCE DISTRIBUTIONS OF ACTIVE AND DEACTIVATED CUSTOMERS?;
+
+
+
+*ACTIVE CUSTOMERS;
+-----------------; 
+TITLE	"AGE AND PROVINCE DISTRIBUTION OF ACTIVE CUSTOMERS";
+
+PROC SQL; 
+*OUTOBS = 500;
+CREATE TABLE PROJECT.ACTIVE_CUX AS 
+SELECT
+Province,
+Age,
+COUNT(Acctno) AS ACTIVE_CUSTOMERS_COUNT
+FROM PROJECT.WIRELESS_FORM
+WHERE 	Deactdt IS NULL
+GROUP BY Age,Province
+ORDER BY  Age,Province
+;
+QUIT; 
+
+PROC PRINT DATA = PROJECT.ACTIVE_CUX (OBS=10);RUN;
+TITLE;
+
+*DEACTIVE CUSTOMERS
+-----------------; 
+TITLE	"AGE AND PROVINCE DISTRIBUTION OF INACTIVE CUSTOMERS";
+
+PROC SQL;
+*OUTOBS = 500;
+CREATE TABLE PROJECT.INACTIVE_CUX AS
+SELECT Accountno,Deactdt,Province,
+Age,
+COUNT(Acctno) AS INACTIVE_CUSTOMERS_COUNT
+FROM PROJECT.WIRELESS_FORM
+WHERE 	Deactdt IS NOT NULL
+GROUP BY Age,Province
+ORDER BY Age,Province
+;
+QUIT; 
+
+PROC PRINT DATA = PROJECT.INACTIVE_CUX (OBS=10);
+RUN;
+TITLE;
+
+PROC FREQ DATA = PROJECT.ACTIVE_CUX;
+TABLE Province*Age /NOCOL NOROW;
+RUN;
+
+PROC FREQ DATA = PROJECT.INACTIVE_CUX;
+TABLE Province*Age /NOCOL NOROW;
+RUN;
+
+
+PROC UNIVARIATE DATA = PROJECT.ACTIVE_CUX NORMAL FREQ PLOT;
+VAR AGE;
+OUTPUT OUT = PROJECT.AGE_UNIVAR_ANALYSIS_ACT;
+RUN;
+
+
+PROC UNIVARIATE DATA = PROJECT.INACTIVE_CUX NORMAL FREQ PLOT;
+VAR AGE;
+OUTPUT OUT = PROJECT.AGE_UNIVAR_ANALYSIS_INACT;
+RUN;
+
+/*Q.1.3 SEGMENT THE CUSTOMERS BASED ON AGE, PROVINCE AND SALES AMOUNT:
+SALES SEGMENT: < $100, $100---500, $500-$800, $800 AND ABOVE.
+AGE SEGMENTS: < 20, 21-40, 41-60, 60 AND ABOVE.
+CREATE ANALYSIS REPORT */
+
+*CREATING PROC FORMATS FOR AGE, SALES AND PROVINCE ;
+proc format;
+*Age segments: < 20, 21-40, 41-60, 60 and above;
+  value ageformat
+   low-<20="=<20"
+   21-<40="21-40"
+   41-<60="41-60"
+   60-high="60 ABOVE"
+   ;
+		
+*Sales segment: < $100, $100---500, $500-$800, $800 and above;
+	
+	Value Salesformat
+	 low-<100="$100"
+	 100-<500="$100-500"
+	 500- <800="$500-$800"
+	 800-high="$800 ABOVE"
+	;
+*Province;
+
+	value $provinceformat
+	"AB"="ALBERTA"
+    "BC"="BRITISH COLUMBIA"
+	"NS"="NOVA SCOTIA"
+	"ON"="ONTARIO"
+	"QC"="QUEBEC"
+	;
+	run;
+
+
+
+PROC PRINT DATA=PROJECT.WIRELESS_FORM (OBS=10);
+FORMAT Age ageformat. Num_Sales Salesformat. Province $provinceformat.;
+RUN;
+
+
+
+PROC FREQ DATA = PROJECT.WIRELESS_FORM;
+TABLE Age Sales Province;
+FORMAT Age ageformat. Num_Sales Salesformat. Province $provinceformat.;
+RUN;
+
+
+*1.4.Statistical Analysis:;
+*1) Calculate the tenure in days for each account and give its simple statistics.;
+
+DATA PROJECT.TENURE_DAYS;
+set PROJECT.WIRELESS_FORM;
+IF  MISSING(DEACTDT) THEN DAYS_TENURE=INTCK('DAY', ACTDT,TODAY());
+ELSE
+DAYS_TENURE=INTCK('DAY', ACTDT, DEACTDT);
+RUN;
+
+PROC PRINT DATA = PROJECT.TENURE_DAYS (OBS=10);
+RUN;
+
+PROC FREQ DATA = PROJECT.TENURE_DAYS (OBS=10);
+TABLE DAYS_TENURE;
+RUN;
+
+%MACRO UNI_ANALYSIS_NUM(DATA,VAR);
+ TITLE "THIS IS HISTOGRAM FOR &VAR";
+ PROC SGPLOT DATA=&DATA;
+  HISTOGRAM &VAR;
+  DENSITY &VAR;
+  DENSITY &VAR/type=kernel ;
+    STYLEATTRS 
+    BACKCOLOR=DARKGREY 
+    WALLCOLOR=LIGHTGREY
+     ;
+  keylegend / location=inside position=topright;
+ RUN;
+ QUIT;
+  TITLE "THIS IS HORIZONTAL BOXPLOT FOR &VAR";
+ PROC SGPLOT DATA=&DATA;
+  HBOX &VAR;
+    STYLEATTRS 
+    BACKCOLOR=DARKGREY 
+    WALLCOLOR=LIGHTPINK
+     ;
+ RUN;
+TITLE "THIS IS UNIVARIATE ANALYSIS FOR &VAR IN &DATA";
+proc means data=&DATA  N NMISS MIN Q1 MEDIAN MEAN Q3 MAX qrange cv clm maxdec=2 ;
+var &var;
+run;
+%MEND;
+%UNI_ANALYSIS_NUM(PROJECT.TENURE_DAYS,DAYS_TENURE)
+
+* 2) Calculate the number of accounts deactivated for each month.;
+
+DATA PROJECT.DEACT_ACC;
+SET PROJECT.INACTIVE_CUX;
+MONTH_DEACT=MONTH(DEACTDT);
+RUN;
+
+PROC PRINT DATA = PROJECT.DEACT_ACC (OBS=10);
+RUN;
+
+PROC FREQ DATA=PROJECT.DEACT_ACC;
+TABLE MONTH_DEACT;
+RUN;
+
+
+/*3) Segment the account, first by account status “Active” and “Deactivated”, then by
+Tenure: < 30 days, 31---60 days, 61 days--- one year, over one year. Report the
+number of accounts of percent of all for each segment.*/
+
+
+
+
+ DATA PROJECT.TENURE_DAYS;
+set PROJECT.WIRELESS_FORM;
+IF  MISSING(DEACTDT) THEN DAYS_TENURE=INTCK('DAY', ACTDT,TODAY());
+ELSE
+DAYS_TENURE=INTCK('DAY', ACTDT, DEACTDT);
+RUN;
+
+PROC PRINT DATA = PROJECT.TENURE_DAYS (OBS=10);
+RUN;
+
+DATA PROJECT.TENURE_SEGMENT;
+SET PROJECT.TENURE_DAYS;
+IF MISSING(Deactdt) then STATUS='ACTIVE';
+ else STATUS='INACTIVE';
+
+ IF  DAYS_TENURE   le 30	then  TENURE_GROUP = 'LESS THAN 30 DAYS';
+   else if  DAYS_TENURE   le 60	then  TENURE_GROUP = '31-60 DAYS';
+   else if  DAYS_TENURE   le 365	then  TENURE_GROUP = '61 DAYS-ONE YR ';
+   else if  DAYS_TENURE   gt 365	then  TENURE_GROUP = 'MORE THAN ONE YR';
+
+   RUN;
+
+   PROC PRINT DATA = PROJECT.TENURE_SEGMENT (OBS=10);
+   RUN;
+
+    PROC CONTENTS DATA = PROJECT.TENURE_SEGMENT ;
+   RUN;
+
+PROC FREQ DATA = PROJECT.TENURE_SEGMENT;
+TABLE STATUS;
+RUN;
+
+PROC FREQ DATA = PROJECT.TENURE_SEGMENT;
+TABLE TENURE_GROUP;
+RUN;
+
+
+*4) Test the general association between the tenure segments and “Good Credit”  “RatePlan ” and “DealerType.”;
+
+PROC PRINT DATA = PROJECT.TENURE_SEGMENT (OBS=100);
+RUN;
+
+
+TITILE:
+%MACRO CHSQUARE (DSN = ,VAR1= , VAR2= );
+ods graphics on;
+proc freq data=&DSN;
+tables (&VAR1.)*(&VAR2) / chisq
+ plots=(freqplot(twoway=grouphorizontal
+ scale=percent));
+run;
+ods graphics off;
+%MEND CHSQUARE;
+
+
+
+%CHSQUARE(DSN = PROJECT.TENURE_SEGMENT  , VAR1= TENURE_GROUP , VAR2 = Credit);
+
+%CHSQUARE(DSN = PROJECT.TENURE_SEGMENT  , VAR1= TENURE_GROUP , VAR2 = Rateplan);
+
+%CHSQUARE(DSN = PROJECT.TENURE_SEGMENT  , VAR1= TENURE_GROUP , VAR2 = Dealertype);
+
+/*5) Is there any association between the account status and the tenure segments?
+Could you find out a better tenure segmentation strategy that is more associated
+with the account status?*/
+
+%MACRO CHSQUARE (DSN = ,VAR1= , VAR2= );
+ods graphics on;
+proc freq data=&DSN;
+tables (&VAR1.)*(&VAR2) / chisq
+ plots=(freqplot(twoway=grouphorizontal
+ scale=percent));
+run;
+ods graphics off;
+%MEND CHSQUARE;
+%CHSQUARE(DSN = PROJECT.TENURE_SEGMENT  , VAR1= TENURE_GROUP , VAR2 =STATUS);
+
+
+
+*6) Does Sales amount differ among different account status, GoodCredit, and customer age segments?;
+
+
+PROC TTEST DATA=PROJECT.TENURE_SEGMENT PLOTS=SUMMARY;
+CLASS STATUS;
+VAR Num_Sales;
+run;
+proc ttest data=PROJECT.TENURE_SEGMENT;
+class Credit;
+var Num_Sales;
+run;
+
+/*CREATING NEW DATA SET FOR GETTING AGEGROUP COLUMN*/
+DATA PROJECT.TENURE_SEGMENT_AGEGRP;
+SET PROJECT.TENURE_SEGMENT;
+ IF  Age   le 20	then  AGE_GROUP = 'LESS THAN 20 YRS';
+   else if  Age  le 40	then  AGE_GROUP = '21-40 YRS';
+   else if  Age   le 60	then  AGE_GROUP = '41-60 YRS ';
+   else if  Age   gt 60	then AGE_GROUP = '60 ABOVE';
+
+   RUN;
+
+   PROC PRINT DATA = PROJECT.TENURE_SEGMENT_AGEGRP (OBS=10);
+   RUN;
+
+
+   PROC CONTENTS DATA = PROJECT.TENURE_SEGMENT_AGEGRP (OBS=100);
+   RUN;
+ *GLM;
+
+PROC GLM DATA=PROJECT.TENURE_SEGMENT_AGEGRP;
+CLASS AGE_GROUP;
+MODEL Num_Sales = AGE_GROUP;
+MEANS Num_Sales / hovtest=levene(type=abs) welch;
+RUN;
+
+*ANOVA;
+
+PROC ANOVA data=PROJECT.TENURE_SEGMENT_AGEGRP;
+CLASS AGE_GROUP;
+MODEL Num_Sales = AGE_GROUP;
+run;
+
+
+
+*ANALYSIS-CATEGORICAL VARIABLES;
+
+PROC FREQ DATA = PROJECT.TENURE_SEGMENT_AGEGRP;
+  TABLE Credit PROVINCE STATUS/MISSING LIST;
+RUN;
+PROC FREQ DATA = PROJECT.WIRELESS_FORM;
+
+*Univariate Analysis
+*CATEGORICAL VARIABLES : ;
+%MACRO UNI_ANALYSIS_CAT(DATA,VAR);
+ 
+TITLE "THIS IS PIECHART OF &VAR FOR &DATA";
+PROC GCHART DATA=&DATA;
+  PIE3D &VAR/discrete 
+             value=inside
+             percent=outside
+             EXPLODE=ALL
+			 SLICE=OUTSIDE
+			 RADIUS=20
+		
+;
+
+RUN;
+%MEND;
+%UNI_ANALYSIS_CAT(PROJECT.WIRELESS_FORM,Credit);
